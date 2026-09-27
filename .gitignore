@@ -1,0 +1,15 @@
+# Hidden files and directories
+.*
+!.gitignore
+!.gitattributes
+
+# Python runtime caches
+__pycache__/
+*.pyc
+
+# Default checkpoint/report directory and generated filenames in custom directories
+checkpoints/
+final_*.pt
+task_*.pt
+results_*.txt
+test_results_*.txt

@@ -1,0 +1,15 @@
+# Hidden workspace files
+.* export-ignore
+.gitignore -export-ignore
+.gitattributes -export-ignore
+
+# Default checkpoint/report directory and generated filenames in custom directories
+checkpoints export-ignore
+final_*.pt export-ignore
+task_*.pt export-ignore
+results_*.txt export-ignore
+test_results_*.txt export-ignore
+
+# Python runtime caches
+**/__pycache__ export-ignore
+*.pyc export-ignore

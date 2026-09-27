@@ -1,0 +1,114 @@
+seed: 0
+
+benchmark:
+  data_root: "/workspace/data/CLAD-C"
+  clad_repo_root: "/workspace/CLAD"
+
+model:
+  weights: "DEFAULT"
+  min_size: 800
+  max_size: 1333
+  box_score_thresh: 0.05
+  box_nms_thresh: 0.5
+  box_detections_per_img: 100
+  adapter_reduction: 8
+  class_balanced_roi_loss: true
+  adapters:
+    enabled: true
+    groups: ["backbone", "fpn", "roi"]
+    max_generations:
+      backbone: 3
+      fpn: 3
+      roi: 4
+
+training:
+  batch_size: 16
+  eval_batch_size: 16
+  epochs_per_task: 50
+  momentum: 0.9
+  learning_rate: 0.005
+  weight_decay: 0.0005
+  scheduler_milestones: [34, 44]  # Drops align with two-epoch DQN boundaries
+  scheduler_gamma: 0.1
+  warmup_epochs: 1
+  warmup_start_factor: 0.001
+  compile_dynamic: true    # Variable current/replay/evaluation batch shapes
+  cudnn_benchmark: true     # Autotune convolutions for the fixed transformed shape
+  replay_loss_weight: 1.5
+  # Reversible DQN replay intensity without allowing sub-parity rehearsal.
+  replay_loss_weight_levels: [1.5, 2.0, 2.5]
+  rare_image_sampling: true
+  rare_image_sampling_strength: 0.75
+  class_balance_beta: 0.999
+  class_balance_max_weight: 5.0
+  # Stem, layer1, layer2, layer3, layer4. Task 1 trains all stages.
+  stagewise_protection: true
+  resnet_stage_lr_multipliers_after_task1: [0.0, 0.0, 0.05, 0.25, 0.5]
+  decision_frequency_epochs: 2
+
+distillation:
+  enabled: true
+  loss_weight: 0.5
+  temperature: 2.0
+  max_proposals_per_image: 256
+  match_iou_threshold: 0.5
+
+replay_buffer:
+  enabled: true
+  replay_batch_size: 16
+  balanced_sampling: true
+  class_balanced_admission: true
+  batch_aware_sampling: true
+  balanced_sampling_strength: 0.75
+  balanced_sampling_max_weight: 5.0
+  refinement_candidate_count: 50  # Rotating retained old-domain records only
+  refinement_entropy_weight: 1.0
+  refinement_localization_weight: 1.0
+  refinement_rare_class_weight: 1.0
+  refinement_feature_redundancy_weight: 0.1
+  utility_sampling_strength: 0.25  # Mild effect of retained-image refinement scores
+  decoded_image_cache_size: 320
+  decode_workers: 4
+
+resources:
+  max_params_ratio: 1.10  # Expansion up to 10% of the original model size
+
+data_loading:
+  num_workers: 8
+  pin_memory: true
+  prefetch_factor: 4
+  persistent_workers: true
+
+controller:
+  algorithm: "dqn"  # "fixed_schedule" selects CARL-FS (no RL)
+  learning_rate: 0.0003
+  gamma: 0.99
+  tau: 0.01
+  replay_capacity: 10000
+  batch_size: 8
+  learning_starts: 8
+  gradient_steps: 4
+  hidden_dims: [64, 64]
+  epsilon_start: 0.25
+  epsilon_end: 0.05
+  exploration_steps: 100
+  # Two intervening decisions separate structural expansions.
+  structural_expansion_cooldown_decisions: 2
+  feedback_ema_alpha: 0.3  # Smooth DQN feedback; benchmark reports remain raw
+  feedback_support_scale: 20.0  # RL only: per-cell weight n/(n+20). official AP unchanged
+  freeze_cooldown_epochs: 2  # Unfrozen interval after an RL freeze ends
+  replay_weight_freeze_epochs: 4  # Minimum training time between weight changes
+
+reward:
+  current_ap_gain: 1.0
+  old_ap_gain: 1.0
+  rare_ap_gain: 0.5
+  forgetting_delta: 0.25
+  parameter_delta: 0.1
+  invalid_action: 1.0
+
+checkpointing:
+  save_every_task: false  # Save only final .pt file
+
+logging:
+  save_dir: "./checkpoints/carl"
