@@ -97,6 +97,7 @@ def build_parser() -> argparse.ArgumentParser:
             "beside the final checkpoint)"
         ),
     )
+    parser.add_argument("--profile-output", help="Write synchronized training measurements and actions to a new JSON file")
     return parser
 
 
@@ -116,22 +117,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.resume:
         trainer.load_checkpoint(args.resume, load_training_state=True)
 
-    training_started = time.perf_counter()
-    training_result = trainer.train()
-    training_time_seconds = time.perf_counter() - training_started
     checkpoint_path = (
         Path(args.checkpoint).expanduser()
         if args.checkpoint
         else _default_checkpoint(config, trainer.run_timestamp)
     )
-    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-    trainer.save_checkpoint(str(checkpoint_path))
-
     output_path = (
         Path(args.output).expanduser()
         if args.output
         else _default_output(checkpoint_path, trainer.run_timestamp)
     )
+    profile = None
+    if args.profile_output:
+        from utils.training_profile import TrainingProfile
+
+        if Path(args.profile_output).expanduser().resolve() in {checkpoint_path.resolve(), output_path.resolve()}:
+            raise ValueError("Choose a profile path distinct from the checkpoint and report")
+        profile = TrainingProfile(args.profile_output, trainer, args.resume)
+        training_result, training_time_seconds = profile.train(trainer)
+    else:
+        training_started = time.perf_counter()
+        training_result = trainer.train()
+        training_time_seconds = time.perf_counter() - training_started
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    trainer.save_checkpoint(str(checkpoint_path))
     report_payload = {
         "run": "CARL-D training",
         "benchmark": "CLAD-D",
@@ -156,6 +165,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     report_payload["test_evaluation_time_seconds"] = test_evaluation_time_seconds
     report_payload["test_metrics"] = test_result
     _write_report(str(output_path), report_payload)
+    if profile is not None:
+        profile.finish(test_result, checkpoint_path, output_path)
     return 0
 
 

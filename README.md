@@ -216,6 +216,41 @@ replay, controller, metric history, and RNG state.
   data preparation.
 - Training is single-device; distributed training is not implemented.
 
+### Measuring training overhead
+
+Run a fresh CARL and CARL-FS pair sequentially on one idle GPU after setting
+the two dataset paths in the configuration:
+
+```bash
+python experiments/profile_pair.py --config config/carl_d.yaml --seed 0 --device cuda:0
+```
+
+The runner creates separate compile-cache directories and writes each effective
+configuration, profile, final checkpoint, and report under
+`checkpoints/profile_pairs/seed_0/`. On retry it reuses completed runs and starts
+an interrupted policy in a fresh attempt directory. The resulting `overhead.md`
+reports one observation per policy. Use another seed for an additional pair.
+
+For an individual measurement, pass `--profile-output PATH.json` to
+`experiments/train_carld.py`. Synchronized wall time covers the four training
+tasks, including validation and action execution. Checkpoint writing and final
+test evaluation occur after the training timer stops. Peak allocated memory
+includes resident model tensors and is recorded in bytes on CUDA. The selection
+timer covers DQN action selection; the update timer covers each gradient update
+from replay sampling through the target-network update. Phase times are parts
+of training time. The JSON also records validation and action execution counts
+and times, action masks where available, replay weights, and structural changes.
+
+For historical experiments organized by variant, run:
+
+```bash
+python experiments/analyze_histories.py "/path/to/results" --output checkpoints/historical_analysis
+```
+
+The analyzer uses the curated variant directories and joins optional supplementary
+histories in `Dokimes` by checkpoint filename. It checks overlapping metrics and
+records auxiliary discrepancies separately. Aggregates count each checkpoint once.
+
 ## Repository structure
 
 ```text
